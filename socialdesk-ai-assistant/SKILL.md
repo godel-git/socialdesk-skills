@@ -103,6 +103,13 @@ Write the final prompt to a new `.md` file in the current working directory. Def
 
 The file content is the prompt itself — a single plain-text block organized in numbered sections in the style of the sales-bot example below. No preamble, no code fences, no restatement of parent-prompt rules, no markdown headings inside the prompt body (numbered uppercase section titles only, like `1. ROL DEL ASISTENTE`).
 
+**Number every instruction.** LLM agents follow numbered instructions more reliably than prose. Use two levels:
+
+1. Top-level numbered sections: `1. ROL DEL ASISTENTE`, `2. MENSAJE INICIAL`, `3. BASE DE CONOCIMIENTO`, etc.
+2. Inside each section, break rules and steps into numbered sub-items (`1.1`, `1.2`, ... or `- 1)`, `- 2)`, ...) instead of free-flowing paragraphs. One rule per line. Short imperative sentences.
+
+Avoid long paragraphs of prose. If a section needs explanation, convert it to an enumerated list.
+
 After writing the file, tell the user the absolute path and instruct them to copy its contents into the `openAIPrompt` field of the Socialdesk AI Assistant app configuration.
 
 **Token budget:** Aim to keep the final prompt concise. If the knowledge base section grows beyond roughly 40-60 lines, ask the user whether everything is essential or if some content belongs elsewhere (FAQs, help docs, internal wikis).
@@ -144,31 +151,35 @@ The following is an abbreviated example of what the final deliverable should loo
 
 ```
 1. ROL DEL ASISTENTE
-Eres el asistente virtual de "Muebles del Valle" en WhatsApp. Tu tono es
-cercano, servicial y breve. Solo respondes temas relacionados con la tienda.
+  1.1 Eres el asistente virtual de "Muebles del Valle" en WhatsApp.
+  1.2 Tu tono es cercano, servicial y breve.
+  1.3 Solo respondes temas relacionados con la tienda.
+  1.4 Si el usuario escribe en otro idioma, continúa en ese idioma.
 
 2. MENSAJE INICIAL
-Saluda por el nombre del contacto si está disponible y ofrece tres opciones:
-ver catálogo, consultar una orden existente, o hablar con un asesor.
+  2.1 Saluda por el nombre del contacto si está disponible.
+  2.2 Presenta tres opciones mediante lista interactiva:
+      - Ver catálogo
+      - Consultar una orden
+      - Hablar con un asesor
 
 3. BASE DE CONOCIMIENTO
-- Vendemos muebles de sala, comedor y dormitorio, fabricados en Costa Rica.
-- Horario de tienda física: lunes a sábado, 9am a 6pm.
-- Envíos a todo el país en 3 a 5 días hábiles.
-- Métodos de pago: SINPE, tarjeta y transferencia bancaria.
+  3.1 Vendemos muebles de sala, comedor y dormitorio, fabricados en Costa Rica.
+  3.2 Horario de tienda física: lunes a sábado, 9am a 6pm.
+  3.3 Envíos a todo el país en 3 a 5 días hábiles.
+  3.4 Métodos de pago: SINPE, tarjeta y transferencia bancaria.
 
 4. DERIVACIÓN A HUMANOS
-Si el cliente pide hablar con un asesor, si menciona un reclamo, o si pregunta
-algo que no está en la base de conocimiento, agrega la etiqueta de seguimiento
-y asigna la conversación al equipo de ventas:
-[[ADD_LABEL:seguimientopendiente]]
-[[ASSIGN_TO:TEAM:<team_id>]]
-Luego responde: "Un asesor te atenderá en unos minutos."
+  4.1 Deriva cuando el cliente pida un asesor, mencione un reclamo, o pregunte algo que no esté en la base de conocimiento.
+  4.2 Ejecuta los comandos:
+      [[ADD_LABEL:seguimientopendiente]]
+      [[ASSIGN_TO:TEAM:<team_id>]]
+  4.3 Luego responde: "Un asesor te atenderá en unos minutos."
 ```
 
 *Nota: los IDs entre `<>` son placeholders — reemplaza por los reales de tu cuenta de Socialdesk.*
 
-Keep the final deliverable in this style: numbered H2-equivalent sections, short paragraphs, commands inlined where they belong.
+Keep the final deliverable in this style: numbered top-level sections with numbered sub-items (`N.M`), short imperative sentences, commands inlined where they belong.
 
 ## Anti-patterns
 

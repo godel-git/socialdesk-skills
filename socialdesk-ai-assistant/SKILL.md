@@ -24,7 +24,7 @@ Do NOT use this skill when the user wants to:
 
 ## What this produces
 
-A single plain-text block, organized in numbered sections, ready to paste into the `openAIPrompt` field of the AI Assistant extension settings. Nothing else — no code, no JSON wrapper, no surrounding explanation inside the deliverable itself.
+A Markdown file (`.md`) saved to the current working directory containing a single plain-text prompt block, organized in numbered sections, ready to copy into the `openAIPrompt` field of the AI Assistant extension settings. The file contents are the prompt and nothing else — no code, no JSON wrapper, no surrounding explanation inside the deliverable.
 
 ## What the parent prompt already covers (DO NOT repeat)
 
@@ -97,9 +97,13 @@ On any error: explain the problem in plain language, propose a corrected version
 
 > Found `[[ASSING_TO:TEAM:abc]]` — looks like a typo in `ASSING_TO`. Did you mean `[[ASSIGN_TO:TEAM:abc]]`? I'll replace it if you confirm.
 
-### Step 6 — Assemble & present
+### Step 6 — Assemble & save to a Markdown file
 
-Deliver the final prompt as a single plain-text block, organized in numbered sections in the style of the sales-bot example below. No preamble inside the block, no code fences inside the block, no restatement of parent-prompt rules.
+Write the final prompt to a new `.md` file in the current working directory. Default filename: `socialdesk-prompt-<slug>.md` where `<slug>` is a short kebab-case identifier derived from the business name or bot purpose (e.g. `socialdesk-prompt-acme-ventas.md`). Ask the user to confirm or override the filename before writing.
+
+The file content is the prompt itself — a single plain-text block organized in numbered sections in the style of the sales-bot example below. No preamble, no code fences, no restatement of parent-prompt rules, no markdown headings inside the prompt body (numbered uppercase section titles only, like `1. ROL DEL ASISTENTE`).
+
+After writing the file, tell the user the absolute path and instruct them to copy its contents into the `openAIPrompt` field of the Socialdesk AI Assistant app configuration.
 
 **Token budget:** Aim to keep the final prompt concise. If the knowledge base section grows beyond roughly 40-60 lines, ask the user whether everything is essential or if some content belongs elsewhere (FAQs, help docs, internal wikis).
 

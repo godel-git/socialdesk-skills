@@ -1,6 +1,9 @@
 # Claude Code local settings
 .claude/
 
+# Superpowers specs and plans
+docs/superpowers/
+
 # macOS
 .DS_Store
 .AppleDouble

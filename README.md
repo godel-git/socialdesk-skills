@@ -56,8 +56,6 @@ socialdesk-skills/
 ├── socialdesk-api/
 │   ├── SKILL.md           # Documentacion de la API
 │   └── api-reference.md   # Referencia detallada de endpoints
-├── socialdesk-node/
-│   └── SKILL.md           # SDK de Node.js/TypeScript
-└── docs/
-    └── superpowers/       # Planes y specs de desarrollo
+└── socialdesk-node/
+    └── SKILL.md           # SDK de Node.js/TypeScript
 ```

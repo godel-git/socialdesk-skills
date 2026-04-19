@@ -42,10 +42,8 @@ Documentacion del **SDK oficial de Node.js/TypeScript** (`socialdesk-node`). Inc
 Agrega este repositorio como plugin de Claude Code:
 
 ```bash
-claude plugins add /ruta/a/socialdesk-skills
+claude plugins add github:godel-git/socialdesk-skills
 ```
-
-O referencia los skills individuales desde tu proyecto.
 
 ## Estructura
 

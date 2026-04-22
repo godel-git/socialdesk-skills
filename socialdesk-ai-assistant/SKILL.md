@@ -13,7 +13,7 @@ Use this skill when the user wants to:
 
 - Write a new custom prompt for the Socialdesk AI Assistant app from scratch.
 - Fix, review, or restructure an existing `openAIPrompt` draft.
-- Add a `[[...]]` command (handoff, label, webhook, form callback) to their prompt and doesn't know the exact syntax.
+- Add a `[[...]]` command (handoff, label, webhook, form callback, send email) to their prompt and doesn't know the exact syntax.
 - Validate commands already present in a draft prompt.
 
 Do NOT use this skill when the user wants to:
@@ -32,13 +32,21 @@ The parent system prompt in `/src/packages/basic-assistant/ai-assistant/middlewa
 
 - The JSON output shape the assistant must return (`text`, `commands`, `interactions`, `attachments`).
 - How `[[...]]` command syntax works and where commands go in the response.
-- WhatsApp Cloud API rules: button counts, list counts, title and description length limits.
 - "Don't invent information", no-loop behavior, not re-asking for data already provided.
 - Current time and timezone context injection.
 - When to use interactions (buttons/lists) vs. plain text.
 - Attachment rules and markdown-to-plain-text conversion.
 
 If the user's draft contains any of the above, remove it and explain that it's already enforced globally.
+
+**Exception — WhatsApp character limits:** Although the parent prompt includes WhatsApp Cloud API limits, the model frequently violates them (e.g. row titles exceeding 24 chars cause error #131009). To reinforce compliance, the custom prompt MUST include a dedicated section with the exact character limits. See "WhatsApp interaction limits" in Step 6.
+
+## Input types the bot can receive
+
+The AI Assistant runtime automatically injects context when the user sends certain WhatsApp message types. The custom prompt does not need to handle parsing — the parent prompt takes care of that — but knowing these exist helps write better instructions for how the bot should react.
+
+- **Location:** When a user shares a location, the bot receives `[User shared a location: latitude=<lat>, longitude=<lon>]`. If the business needs location-aware behavior (e.g. calculating delivery zones, confirming addresses), the custom prompt can include instructions for how to respond.
+- **Orders:** When a user sends a WhatsApp catalog order, the bot receives `[User sent an order: {"items":[{"name":"...","quantity":N,"item_price":N,"currency":"..."}]}]`. If the business uses WhatsApp catalogs, the custom prompt can include instructions for how to process or confirm orders.
 
 ## Flow
 
@@ -53,7 +61,7 @@ If the user's draft contains any of the above, remove it and explain that it's a
 
 Always collect these four, in order, one question at a time:
 
-1. **Role & identity** — company/brand name, channel (WhatsApp, web, etc.), tone and personality.
+1. **Role & identity** — company/brand name, tone and personality. Assume WhatsApp + Socialdesk unless the user explicitly mentions a different channel.
 2. **Initial message** — how the bot greets, whether to offer a menu or open question.
 3. **Knowledge base** — what the business does, main products/services, anything the bot must know to answer.
 4. **Human handoff** — when to escalate and to whom. This is where the command builder (Step 4) typically kicks in for the first time.
@@ -81,17 +89,19 @@ Non-technical users don't know `[[...]]` syntax. Ask plain-language questions an
 | Send data to external system | URL (no `&` in the URL itself), fields to send | `[[WEBHOOK:POST\|URL=...&payload={...}]]` with `<placeholder>` substitutions |
 | Trigger a pre-filled form | Form name + fields to prefill | `[[ASSISTANT_CALLBACK:FORM_ASSISTANT\|PREFILLED_FORM_SUBMIT?formname=<name>&<field>=<value>]]` |
 | Hand off to another AI assistant flow | Assistant id + step (advanced — ask user for raw values) | `[[ASSISTANT_CALLBACK:ASSIGN_ASSISTANT\|ASSIGN?id=<id>&step=<n>]]` |
+| Send an email | Recipient(s), subject, body content | `[[SEND_EMAIL:to=<email>&subject=<asunto>&body=<cuerpo>]]` |
 
 Placeholders like `<nombre>`, `<correo>`, `<telefono>` are substituted at runtime by the bot from chat/contact data — the user does not need to fill them in manually.
 
 ### Step 5 — Command validator
 
-When the user provides a draft, extract every `[[...]]` and validate against the four valid command types from `shared/types.ts`. Use these exact grammars:
+When the user provides a draft, extract every `[[...]]` and validate against the five valid command types from `shared/types.ts`. Use these exact grammars:
 
 - `[[ASSIGN_TO:(USER|TEAM):<id>]]` — `<id>` is a non-empty string (typically a 24-char MongoDB ObjectId, but don't hard-require length). No spaces, no `]` inside the id.
 - `[[ADD_LABEL:<key>]]` — `<key>` is a non-empty token, typically lowercase alphanumeric with optional hyphens/underscores.
 - `[[WEBHOOK:<METHOD>|<params>]]` — `<METHOD>` is uppercase letters (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`). `<params>` is `key=value` pairs separated by `&`. Supported keys: `URL`, `payload`, `headers`. `payload` and `headers` are JSON values (object `{...}` or array `[...]`) and may contain `&` safely because the parser reads balanced JSON. **`URL` must NOT contain `&`** — the parser reads URL up to the next `&`, so any `&` in the URL truncates the command.
 - `[[ASSISTANT_CALLBACK:<SUBTYPE>|<ACTION>?<querystring>]]` — `<SUBTYPE>` is `FORM_ASSISTANT` or `ASSIGN_ASSISTANT`; `<ACTION>` is `PREFILLED_FORM_SUBMIT` (for `FORM_ASSISTANT`) or `ASSIGN` (for `ASSIGN_ASSISTANT`); `<querystring>` is standard `key=value&key=value`.
+- `[[SEND_EMAIL:to=<email>&subject=<subject>&body=<body>]]` — `to` is one or more email addresses separated by commas. `subject` is plain text. `body` is **always the last parameter** because it may contain `&` characters; the parser reads everything after `body=` to the closing `]]`. Body must be plain text only (no HTML). Only generate this command when the custom instructions explicitly require sending an email. Never invent recipient addresses — use only addresses from contact info, chat log, or custom instructions.
 
 On any error: explain the problem in plain language, propose a corrected version, and confirm with the user before substituting. Example phrasing of a correction:
 
@@ -101,7 +111,21 @@ On any error: explain the problem in plain language, propose a corrected version
 
 Write the final prompt to a new `.md` file in the current working directory. Default filename: `socialdesk-prompt-<slug>.md` where `<slug>` is a short kebab-case identifier derived from the business name or bot purpose (e.g. `socialdesk-prompt-acme-ventas.md`). Ask the user to confirm or override the filename before writing.
 
-The file content is the prompt itself — a single plain-text block organized in numbered sections in the style of the sales-bot example below. No preamble, no code fences, no restatement of parent-prompt rules, no markdown headings inside the prompt body (numbered uppercase section titles only, like `1. ROL DEL ASISTENTE`).
+The file content is the prompt itself — a single plain-text block organized in numbered sections in the style of the sales-bot example below. No preamble, no code fences, no markdown headings inside the prompt body (numbered uppercase section titles only, like `1. ROL DEL ASISTENTE`).
+
+**WhatsApp interaction limits (MUST include):** Every generated prompt must contain a dedicated section (e.g. `N. LÍMITES DE INTERACCIONES WHATSAPP`) with these exact constraints. The parent prompt has them too, but the model frequently violates them, so redundancy is intentional here:
+
+- Button title (`reply.title`): 1–20 characters. If longer, shorten to fit.
+- Maximum buttons per message: 3.
+- List menu button text (`action.button`): 1–20 characters.
+- List row title (`row.title`): maximum 24 characters.
+- List row description (`row.description`): maximum 72 characters.
+- Maximum sections per list: 10.
+- Maximum total rows across all sections: 10.
+- Header text: maximum 60 characters.
+- Footer text: maximum 60 characters.
+- Body text with interactions: maximum 1000 characters.
+- Body text without interactions: maximum 4000 characters.
 
 **Number every instruction.** LLM agents follow numbered instructions more reliably than prose. Use two levels:
 
@@ -116,7 +140,7 @@ After writing the file, tell the user the absolute path and instruct them to cop
 
 ## Command reference
 
-Cheat sheet of the four valid command families. These are the only commands the AI Assistant runtime recognizes.
+Cheat sheet of the five valid command families. These are the only commands the AI Assistant runtime recognizes.
 
 - **Assign conversation** — hand off to a specific user or team.
   - `[[ASSIGN_TO:USER:<id>]]`
@@ -130,6 +154,9 @@ Cheat sheet of the four valid command families. These are the only commands the 
   - `[[ASSISTANT_CALLBACK:FORM_ASSISTANT|PREFILLED_FORM_SUBMIT?formname=<name>&field=<value>]]`
 - **Assistant callback — hand off to another assistant** — jump into a specific IVR/assistant step.
   - `[[ASSISTANT_CALLBACK:ASSIGN_ASSISTANT|ASSIGN?id=<id>&step=<n>]]`
+- **Send email** — send an email via SendGrid. Only use when the custom instructions explicitly require it.
+  - `[[SEND_EMAIL:to=<email>&subject=<subject>&body=<body>]]`
+  - **SEND_EMAIL grammar notes:** `to` accepts multiple addresses separated by commas. `body` is **always the last parameter** — the parser reads everything after `body=` until `]]`, so `&` inside the body text is safe. Body must be plain text (no HTML). Never invent recipient addresses — use only addresses from the contact, chat log, or custom instructions.
 
 Placeholders wrapped in angle brackets (`<nombre>`, `<correo>`, `<telefono>`, etc.) are replaced by the bot at runtime from chat and contact data.
 
@@ -142,6 +169,8 @@ When a command needs an ID, URL, or form name the user doesn't know, ask plainly
 - **Webhook payload:** "¿Qué campos quieres enviar? Los que vienen del chat (nombre del contacto, teléfono, correo) puedo dejarlos como `<nombre>`, `<telefono>`, `<correo>` y el bot los rellena solo."
 - **Label key:** "¿Qué etiqueta quieres agregar? Usa el *key* exacto como aparece en Socialdesk (por ejemplo `seguimientopendiente`, sin espacios ni mayúsculas)."
 - **Form name:** "¿Cómo se llama el formulario en Socialdesk? Es el nombre interno, no el título visible."
+- **Email recipient:** "¿A qué dirección de correo se debe enviar? Si son varias, sepáralas por coma. Solo usa correos reales que conozcas — no te inventes ninguno."
+- **Email content:** "¿Cuál es el asunto del correo? ¿Y qué debe decir el cuerpo? Puedo usar `<nombre>`, `<telefono>`, `<correo>` como datos del contacto que se rellenan automáticamente."
 
 If the user doesn't have a value, leave a clearly marked `TODO` in the draft (e.g. `[[ASSIGN_TO:TEAM:TODO_TEAM_ID]]`) and remind them to replace it before saving. Never invent a plausible-looking ID or URL.
 
@@ -151,7 +180,7 @@ The following is an abbreviated example of what the final deliverable should loo
 
 ```
 1. ROL DEL ASISTENTE
-  1.1 Eres el asistente virtual de "Muebles del Valle" en WhatsApp.
+  1.1 Eres el asistente virtual de "Muebles del Valle" en WhatsApp, integrado con Socialdesk.
   1.2 Tu tono es cercano, servicial y breve.
   1.3 Solo respondes temas relacionados con la tienda.
   1.4 Si el usuario escribe en otro idioma, continúa en ese idioma.
@@ -175,6 +204,19 @@ The following is an abbreviated example of what the final deliverable should loo
       [[ADD_LABEL:seguimientopendiente]]
       [[ASSIGN_TO:TEAM:<team_id>]]
   4.3 Luego responde: "Un asesor te atenderá en unos minutos."
+
+5. LÍMITES DE INTERACCIONES WHATSAPP
+  5.1 Título de botón: máximo 20 caracteres.
+  5.2 Máximo 3 botones por mensaje.
+  5.3 Texto del botón de lista: máximo 20 caracteres.
+  5.4 Título de fila de lista: máximo 24 caracteres.
+  5.5 Descripción de fila de lista: máximo 72 caracteres.
+  5.6 Máximo 10 secciones por lista, máximo 10 filas en total.
+  5.7 Texto de header: máximo 60 caracteres.
+  5.8 Texto de footer: máximo 60 caracteres.
+  5.9 Texto del cuerpo con interacciones: máximo 1000 caracteres.
+  5.10 Texto del cuerpo sin interacciones: máximo 4000 caracteres.
+  5.11 Si un título excede el límite, recórtalo para que quepa.
 ```
 
 *Nota: los IDs entre `<>` son placeholders — reemplaza por los reales de tu cuenta de Socialdesk.*
@@ -183,9 +225,9 @@ Keep the final deliverable in this style: numbered top-level sections with numbe
 
 ## Anti-patterns
 
-- Do not repeat anything the parent prompt already covers (output format, command syntax rules, WhatsApp limits, no-loop, attachments, markdown — see the dedicated section above).
+- Do not repeat anything the parent prompt already covers (output format, command syntax rules, no-loop, attachments, markdown — see the dedicated section above) **except** WhatsApp character limits, which must always be included as a dedicated section for reinforcement.
 - Do not assume optional sections. Ask before including business hours, FAQs, language rules, or restrictions.
 - Do not invent team IDs, user IDs, webhook URLs, form names, or label keys. Ask the user; if unknown, leave a `TODO` placeholder.
-- Do not output malformed `[[...]]` commands. Every command must match one of the four valid families in the command reference.
+- Do not output malformed `[[...]]` commands. Every command must match one of the five valid families in the command reference.
 - Do not write SDK code, webhook handlers, or backend logic — that belongs in the **socialdesk-node** skill.
 - Do not wrap the final deliverable in code fences or add preamble/closing text inside the pasteable block.

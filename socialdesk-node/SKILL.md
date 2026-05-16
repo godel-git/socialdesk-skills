@@ -49,7 +49,7 @@ webhook.getMessageId()             // Works for ANY event type
 webhook.getMessageText()           // Works for ANY event type
 webhook.getChannelInstance()       // Channel ID (needed for HSM)
 webhook.getInstanceId()            // Your app instance ID
-webhook.getSettings<T>()           // Parsed app settings (auto JSON.parse)
+webhook.getSettings<T>()           // App settings from event.extension_settings
 webhook.getConversationContext<T>() // Full conversation context
 webhook.getApplicationContext<T>()  // Your app's persisted context
 webhook.isEventType(EventType.X)   // Type check
@@ -172,7 +172,7 @@ app.use(express.json());
 app.post('/webhook', async (req, res) => {
   const webhook = new WebhookHelper(req.body);
   const client = webhook.createClient();
-  const settings = req.body.extension_settings ?? {};
+  const settings = webhook.getSettings();
 
   if (webhook.isEventType(EventType.DirectMessage)) {
     const payload = webhook.getPayload();
